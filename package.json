@@ -1,0 +1,19 @@
+{
+  "name": "openwa-relay",
+  "version": "1.0.0",
+  "description": "Single endpoint that fans app notifications out to WhatsApp recipient lists via OpenWA",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup-inbound": "node scripts/setup-inbound.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "socket.io-client": "^4.8.1"
+  }
+}

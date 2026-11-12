@@ -1,0 +1,7 @@
+{
+  "alerts": ["YOUR_CHAT_ID@c.us"],
+  "inbound": ["YOUR_SOURCE_CHAT_ID@lid"],
+  "errorForward": ["YOUR_ERROR_ESCALATION_CHAT@c.us"],
+  "warningForward": ["YOUR_WARNING_ESCALATION_CHAT@c.us"],
+  "infoForward": ["YOUR_INFO_ESCALATION_CHAT@c.us"]
+}

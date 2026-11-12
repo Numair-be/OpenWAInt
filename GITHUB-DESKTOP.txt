@@ -1,0 +1,14 @@
+Publish with GitHub Desktop
+===========================
+1. File → Add local repository
+2. Choose this folder: C:\Users\Numair\Desktop\openwa-whatsapp-relay
+3. If asked to create a repo here, choose "create a repository"
+4. Repository → Publish repository (pick name, e.g. openwa-whatsapp-relay)
+
+After clone on a new machine:
+  copy .env.example .env
+  copy lists.example.json lists.json
+  npm ci
+  docker compose up -d --build
+
+Do not commit .env or lists.json (real chat IDs).

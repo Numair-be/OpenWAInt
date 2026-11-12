@@ -1,0 +1,16 @@
+services:
+  openwa-relay:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      LISTS_FILE: /data/lists.json
+      # Inside the container, localhost is the relay itself — OpenWA on the host is:
+      OPENWA_URL: http://host.docker.internal:2785
+      OPENWA_EVENTS_URL: http://host.docker.internal:2785/events
+    volumes:
+      - ./lists.json:/data/lists.json:ro
+    ports:
+      - "127.0.0.1:3000:3000"   # local only; apps on this server call localhost:3000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
