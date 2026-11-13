@@ -29,6 +29,15 @@ for (const [name, val] of Object.entries({ OPENWA_KEY, OPENWA_SESSION, RELAY_TOK
   }
 }
 
+const SESSION_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+if (!SESSION_UUID.test(OPENWA_SESSION)) {
+  console.error(
+    `OPENWA_SESSION must be the full session UUID from the dashboard (got "${OPENWA_SESSION}")`,
+  );
+  process.exit(1);
+}
+
 const minDelay = Number(MIN_DELAY_MS);
 const maxDelay = Number(MAX_DELAY_MS);
 const maxRetries = Number(MAX_RETRIES);
@@ -37,8 +46,37 @@ const jitter = () => minDelay + Math.random() * Math.max(0, maxDelay - minDelay)
 
 // ---- Recipient lists (re-read on every request, so edits apply instantly) --
 function loadLists() {
-  return JSON.parse(fs.readFileSync(LISTS_FILE, "utf8"));
+  const raw = fs.readFileSync(LISTS_FILE, "utf8").trim();
+  if (!raw) throw new Error(`${LISTS_FILE} is empty`);
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`${LISTS_FILE}: ${err.message}`);
+  }
 }
+
+function validateListsAtStartup() {
+  try {
+    const lists = loadLists();
+    for (const key of [
+      "alerts",
+      "inbound",
+      "errorForward",
+      "warningForward",
+      "infoForward",
+    ]) {
+      const arr = lists[key];
+      if (arr !== undefined && !Array.isArray(arr)) {
+        throw new Error(`${key} must be an array`);
+      }
+    }
+    console.log(`Loaded ${LISTS_FILE}`);
+  } catch (err) {
+    console.error(`Invalid lists file: ${err.message}`);
+    process.exit(1);
+  }
+}
+validateListsAtStartup();
 
 // ---- Send one message through OpenWA --------------------------------------
 async function sendOne(chatId, text) {
@@ -136,6 +174,23 @@ function enqueue(channel, text) {
   return { jobId, queued: recipients.length };
 }
 
+// Shared with WhatsApp inbound: message must *start* with error | warning | info.
+const PREFIX_RE = /^\s*(error|warning|info)(\s+|$)/i;
+
+function routeInboundPrefix(body) {
+  const m = String(body ?? "").match(PREFIX_RE);
+  if (!m) return null;
+  const word = m[1].toLowerCase();
+  if (word === "error") return "errorForward";
+  if (word === "warning") return "warningForward";
+  if (word === "info") return "infoForward";
+  return null;
+}
+
+function investigationText(body) {
+  return `Investigation Issue ${String(body).trim()}`;
+}
+
 // POST /notify  { "channel": "alerts", "text": "Disk usage at 92%" }
 app.post("/notify", auth, (req, res) => {
   const { channel, text } = req.body ?? {};
@@ -151,8 +206,9 @@ app.post("/notify", auth, (req, res) => {
 // POST /alert
 // { "app": "billing-api", "message": "DB connection refused",
 //   "level": "error", "details": "<stack trace>", "channel": "alerts" }
-// Only "message" is required. Identical alerts from the same app are
-// throttled so an error loop can't flood WhatsApp.
+// Only "message" is required. If message starts with error|warning|info, routes
+// like WhatsApp inbound (Investigation Issue → *Forward lists). Otherwise formatted alert.
+// Identical alerts from the same app are throttled.
 const THROTTLE_MS = Number(process.env.THROTTLE_MINUTES ?? 5) * 60 * 1000;
 const DEFAULT_CHANNEL = process.env.DEFAULT_CHANNEL ?? "alerts";
 const HOST = process.env.RELAY_HOSTNAME ?? os.hostname();
@@ -199,6 +255,13 @@ app.post("/alert", auth, (req, res) => {
     lines.push("", `_(+${repeats} identical alert(s) suppressed since the last one)_`);
   }
 
+  const forwardChannel = routeInboundPrefix(message);
+  if (forwardChannel) {
+    const out = enqueue(forwardChannel, investigationText(message));
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    return res.status(202).json({ ...out, route: forwardChannel, format: "investigation" });
+  }
+
   const out = enqueue(channel, lines.join("\n"));
   if (out.error) return res.status(out.status).json({ error: out.error });
   res.status(202).json(out);
@@ -221,24 +284,9 @@ app.get("/jobs/:id", auth, (req, res) => {
 app.get("/health", (_req, res) => res.json({ ok: true, queued: queue.length }));
 
 // ---- Inbound WhatsApp (live message stream, not HTTP webhooks) ---------------
-// Someone sends a WhatsApp text in a watched chat:
-//   starts with "error"   → fan out to lists.json "errorForward"
-//   starts with "warning" → fan out to lists.json "warningForward"
-//   starts with "info"    → fan out to lists.json "infoForward"
-// Text sent: "Investigation Issue" + their full message. Otherwise nothing.
-const PREFIX_RE = /^\s*(error|warning|info)(\s+|$)/i;
+// Watched chats only; same prefix → forward rules as POST /alert (see routeInboundPrefix).
 const seenInbound = new Set();
 const MAX_SEEN_INBOUND = 10_000;
-
-function routeInboundPrefix(body) {
-  const m = String(body ?? "").match(PREFIX_RE);
-  if (!m) return null;
-  const word = m[1].toLowerCase();
-  if (word === "error") return "errorForward";
-  if (word === "warning") return "warningForward";
-  if (word === "info") return "infoForward";
-  return null;
-}
 
 function handleInboundWhatsApp(data) {
   if (!data || data.fromMe === true) return;
@@ -276,8 +324,7 @@ function handleInboundWhatsApp(data) {
     }
   }
 
-  const text = `Investigation Issue ${body.trim()}`;
-  const out = enqueue(channel, text);
+  const out = enqueue(channel, investigationText(body));
   if (out.error) {
     console.error(`[inbound] ${out.error}`);
     return;
@@ -300,6 +347,8 @@ function startWhatsAppInboundListener() {
     auth: { apiKey: OPENWA_KEY },
     reconnection: true,
     reconnectionDelayMax: 15_000,
+    // Prefer WebSocket over long-polling (fewer "xhr poll error" lines on Docker Desktop → host).
+    transports: ["websocket", "polling"],
   });
 
   socket.on("connect", () => {
@@ -323,7 +372,13 @@ function startWhatsAppInboundListener() {
     }
     if (msg?.type !== "event") return;
     const { event, sessionId, data } = msg.payload ?? {};
-    if (event !== "message.received" || sessionId !== OPENWA_SESSION) return;
+    if (event !== "message.received") return;
+    if (sessionId !== OPENWA_SESSION) {
+      if (process.env.INBOUND_DEBUG === "true") {
+        console.log(`[inbound] skip session ${sessionId} (OPENWA_SESSION=${OPENWA_SESSION})`);
+      }
+      return;
+    }
     handleInboundWhatsApp(data);
   });
 
