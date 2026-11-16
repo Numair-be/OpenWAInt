@@ -2,7 +2,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+lists.json
 OpenWA/
-demo/
+videos/
 *.log
 .DS_Store

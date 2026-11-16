@@ -187,6 +187,17 @@ function routeInboundPrefix(body) {
   return null;
 }
 
+/** POST /alert: prefix on message, else JSON `level` → *Forward lists (not `alerts`). */
+function routeAlertForward(message, level) {
+  const fromMessage = routeInboundPrefix(message);
+  if (fromMessage) return fromMessage;
+  const lvl = String(level ?? "").toLowerCase();
+  if (lvl === "error" || lvl === "critical") return "errorForward";
+  if (lvl === "warning") return "warningForward";
+  if (lvl === "info") return "infoForward";
+  return null;
+}
+
 function investigationText(body) {
   return `Investigation Issue ${String(body).trim()}`;
 }
@@ -206,8 +217,9 @@ app.post("/notify", auth, (req, res) => {
 // POST /alert
 // { "app": "billing-api", "message": "DB connection refused",
 //   "level": "error", "details": "<stack trace>", "channel": "alerts" }
-// Only "message" is required. If message starts with error|warning|info, routes
-// like WhatsApp inbound (Investigation Issue → *Forward lists). Otherwise formatted alert.
+// Only "message" is required. Routes to *Forward when message starts with
+// error|warning|info OR when `level` is error|critical|warning|info (Investigation Issue text).
+// Otherwise formatted alert → `channel` / DEFAULT_CHANNEL (`alerts`).
 // Identical alerts from the same app are throttled.
 const THROTTLE_MS = Number(process.env.THROTTLE_MINUTES ?? 5) * 60 * 1000;
 const DEFAULT_CHANNEL = process.env.DEFAULT_CHANNEL ?? "alerts";
@@ -255,7 +267,7 @@ app.post("/alert", auth, (req, res) => {
     lines.push("", `_(+${repeats} identical alert(s) suppressed since the last one)_`);
   }
 
-  const forwardChannel = routeInboundPrefix(message);
+  const forwardChannel = routeAlertForward(message, lvl);
   if (forwardChannel) {
     const out = enqueue(forwardChannel, investigationText(message));
     if (out.error) return res.status(out.status).json({ error: out.error });

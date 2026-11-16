@@ -6,6 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "demo:alert": "node demo/alert-test/server.mjs",
     "setup-inbound": "node scripts/setup-inbound.mjs"
   },
   "engines": {

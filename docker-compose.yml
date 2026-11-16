@@ -1,5 +1,9 @@
+# Fixed container name so logs work the same whether the repo folder is WALocal, OpenWA-integration-main, etc.
+name: openwa-relay
+
 services:
   openwa-relay:
+    container_name: openwa-relay
     build: .
     restart: unless-stopped
     env_file: .env

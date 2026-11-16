@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prefix alert demo</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, sans-serif;
+        background: #0f1419;
+        color: #e7ecf3;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem 1rem;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+      }
+      p {
+        margin: 0 0 2rem;
+        color: #9aa8b8;
+        font-size: 0.9rem;
+        text-align: center;
+        max-width: 28rem;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2rem;
+        justify-content: center;
+        align-items: center;
+      }
+      button {
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.25);
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        color: #fff;
+        text-transform: uppercase;
+        transition: transform 0.12s, box-shadow 0.12s;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      }
+      button:hover:not(:disabled) {
+        transform: scale(1.06);
+      }
+      button:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+      .error {
+        background: linear-gradient(145deg, #e53935, #b71c1c);
+      }
+      .warning {
+        background: linear-gradient(145deg, #fb8c00, #e65100);
+      }
+      .info {
+        background: linear-gradient(145deg, #1e88e5, #0d47a1);
+      }
+      #status {
+        margin-top: 2rem;
+        min-height: 4rem;
+        max-width: 32rem;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        padding: 1rem;
+        background: #1a2332;
+        border-radius: 8px;
+        border: 1px solid #2d3a4d;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Prefix routing demo</h1>
+    <p>
+      Each button POSTs to the relay with a message starting with
+      <strong>error</strong>, <strong>warning</strong>, or <strong>info</strong>
+      → Investigation Issue to the matching forward list.
+    </p>
+    <div class="row">
+      <button type="button" class="error" data-kind="error">Error</button>
+      <button type="button" class="warning" data-kind="warning">Warning</button>
+      <button type="button" class="info" data-kind="info">Info</button>
+    </div>
+    <div id="status">Ready.</div>
+    <script>
+      const status = document.getElementById("status");
+      const buttons = document.querySelectorAll("button[data-kind]");
+
+      async function send(kind) {
+        for (const b of buttons) b.disabled = true;
+        status.textContent = "Sending " + kind + "…";
+        try {
+          const res = await fetch("/api/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kind }),
+          });
+          const data = await res.json();
+          status.textContent =
+            res.ok
+              ? "OK " + res.status + "\n" + JSON.stringify(data, null, 2)
+              : "Failed " + res.status + "\n" + JSON.stringify(data, null, 2);
+        } catch (e) {
+          status.textContent = "Network error: " + e.message;
+        } finally {
+          for (const b of buttons) b.disabled = false;
+        }
+      }
+
+      buttons.forEach((btn) =>
+        btn.addEventListener("click", () => send(btn.dataset.kind)),
+      );
+    </script>
+  </body>
+</html>
