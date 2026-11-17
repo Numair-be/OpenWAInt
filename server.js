@@ -355,12 +355,19 @@ function startWhatsAppInboundListener() {
   if (process.env.INBOUND_LISTENER === "false") return;
 
   const url = openwaEventsUrl();
+  const transportEnv = (process.env.SOCKETIO_TRANSPORTS ?? "polling")
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const transports =
+    transportEnv.length > 0 ? transportEnv : ["polling", "websocket"];
+
   const socket = io(url, {
     auth: { apiKey: OPENWA_KEY },
     reconnection: true,
     reconnectionDelayMax: 15_000,
-    // Prefer WebSocket over long-polling (fewer "xhr poll error" lines on Docker Desktop → host).
-    transports: ["websocket", "polling"],
+    // Default polling-first: WebSocket upgrades often fail on Docker/WSL while polling works.
+    transports,
   });
 
   socket.on("connect", () => {
@@ -395,7 +402,10 @@ function startWhatsAppInboundListener() {
   });
 
   socket.on("connect_error", (err) => {
-    console.error("WhatsApp listener:", err.message);
+    const detail = err?.description ?? err?.cause?.message ?? "";
+    console.error(
+      `WhatsApp listener connect_error (${transports.join(",")}): ${err.message}${detail ? ` — ${detail}` : ""}`,
+    );
   });
 }
 

@@ -1,0 +1,18 @@
+# Copy to docker-compose.override.yml on the server when OpenWA runs in a separate compose
+# project and relay should use the shared network (fixes inbound /events on WSL).
+#
+#   docker network create openwa-notify
+# Add openwa/docker-compose.override.yml with the same network block, then:
+#   docker compose up -d
+
+networks:
+  default:
+    name: openwa-notify
+    external: true
+
+services:
+  openwa-relay:
+    environment:
+      OPENWA_URL: http://openwa:2785
+      OPENWA_EVENTS_URL: http://openwa:2785/events
+    extra_hosts: []

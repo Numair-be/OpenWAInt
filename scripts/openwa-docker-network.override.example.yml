@@ -1,0 +1,7 @@
+# Place as /mnt/c/WhatsappAPI/openwa/docker-compose.override.yml
+# (same network name as relay docker-compose.override.yml)
+
+networks:
+  default:
+    name: openwa-notify
+    external: true

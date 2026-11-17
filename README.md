@@ -115,3 +115,44 @@ docker logs -f <NAME from first column>
 ```
 
 OpenWA API logs (separate stack): `docker logs -f openwa-api`
+
+## Start on server boot (Docker **inside WSL**, no Desktop)
+
+Compose already sets **`restart: unless-stopped`**. After reboot, containers restart **only when** WSL is running **and** `dockerd` inside WSL is up.
+
+### A. Enable Docker on boot inside WSL (Ubuntu)
+
+```bash
+sudo nano /etc/wsl.conf
+```
+
+```ini
+[boot]
+systemd=true
+```
+
+In **PowerShell (Windows):** `wsl --shutdown`, then open WSL again.
+
+```bash
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+### B. Wake WSL + stack when **Windows** boots (no login)
+
+**Task Scheduler** → Create Task → Trigger **At startup** (delay 1 min) → Action:
+
+```text
+Program: wsl.exe
+Arguments: -d Ubuntu -e sh /mnt/c/WhatsappAPI/relay/scripts/boot-stack.sh
+```
+
+Or run `scripts/boot-stack.ps1` from PowerShell (adjust distro name).
+
+`boot-stack.sh` tries `service docker start` if the socket is missing, then `docker compose up -d` for OpenWA and relay.
+
+### C. Verify
+
+```bash
+docker ps --filter name=openwa
+```

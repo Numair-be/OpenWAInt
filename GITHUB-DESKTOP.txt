@@ -1,19 +1,20 @@
 Publish with GitHub Desktop
 ===========================
 1. File → Add local repository
-2. Choose this folder: C:\Users\Numair\Desktop\share\OpenWAInt
-3. If asked to create a repo here, choose "create a repository"
-4. Repository → Publish repository (pick name, e.g. openwa-whatsapp-relay)
+2. Choose: C:\Users\Numair\Desktop\share\OpenWAInt
+3. Commit all changes → Publish / Push to https://github.com/Numair-be/OpenWAInt.git
 
-After clone on a new machine:
-  copy .env.example .env
-  copy lists.example.json lists.json
-  (edit both — never commit real .env or lists.json)
+On the server (WSL, /mnt/c/WhatsappAPI/relay):
+  git pull
+  cp .env.example .env
+  cp lists.example.json lists.json
+  # Optional server networking: see docker-compose.override.example.yml
+  docker compose up -d --build
 
-  OpenWA is separate: clone https://github.com/rmyndharis/OpenWA.git
-  docker compose -f docker-compose.dev.yml up -d   # in OpenWA folder
-  docker compose up -d --build                     # in this relay folder
+OpenWA (separate clone, not this repo):
+  git clone https://github.com/rmyndharis/OpenWA.git /mnt/c/WhatsappAPI/openwa
+  cp scripts/openwa-docker-network.override.example.yml ../openwa/docker-compose.override.yml
 
-  npm run demo:alert   # optional test UI on :3100
+Boot on Windows server (Docker inside WSL): README.md § "Start on server boot"
 
-Do not commit: .env, lists.json, OpenWA/, node_modules/
+Do not commit: .env, lists.json, node_modules/
